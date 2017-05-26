@@ -56,6 +56,15 @@ type Config struct {
 	// checked.
 	TypeCheckFuncBodies func(path string) bool
 
+	// TypeCheckImporter, if non-nil, is invoked to choose the
+	// types.Importer that will be used to create the package specified by
+	// path.
+	//
+	// The fromSource argument is the default Importer which loads from source
+	// directly. i.e. if it is returned, the package is imported as it would be
+	// if this field was not specified at all.
+	TypeCheckImporter func(path string, fromSource types.Importer) types.Importer
+
 	// If Build is non-nil, it is used to locate source packages.
 	// Otherwise &build.Default is used.
 	//
@@ -1055,7 +1064,12 @@ func (imp *importer) newPackageInfo(path, dir string) *PackageInfo {
 	if f := imp.conf.TypeCheckFuncBodies; f != nil {
 		tc.IgnoreFuncBodies = !f(path)
 	}
-	tc.Importer = closure{imp, info}
+	fromSource := closure{imp, info}
+	tc.Importer = fromSource
+	if imp.conf.TypeCheckImporter != nil {
+		tc.Importer = imp.conf.TypeCheckImporter(path, fromSource)
+	}
+
 	tc.Error = info.appendError // appendError wraps the user's Error function
 
 	info.checker = types.NewChecker(&tc, imp.conf.fset(), pkg, &info.Info)
